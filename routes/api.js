@@ -30,6 +30,7 @@ router.post('/clients', clientController.addClient);
 // Billing
 router.post('/bills', billingController.createBill);
 router.get('/bills', billingController.getBills);
+router.get('/bills/:id/pdf', billingController.downloadBillPDF);
 
 // Areas
 router.get('/areas', areaController.getAreas);
