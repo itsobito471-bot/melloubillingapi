@@ -26,6 +26,7 @@ router.delete('/products/:id', inventoryController.deleteProduct);
 // Clients
 router.get('/clients', clientController.getClients);
 router.post('/clients', clientController.addClient);
+router.patch('/clients/:id', clientController.updateClient);
 
 // Billing
 router.post('/bills', billingController.createBill);
