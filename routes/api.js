@@ -35,7 +35,10 @@ router.get('/bills/:id/pdf', billingController.downloadBillPDF);
 // Areas
 router.get('/areas', areaController.getAreas);
 router.post('/areas', areaController.addArea);
-router.post('/areas/subarea', areaController.addSubarea);
+
+// Subareas
+router.get('/subareas', areaController.getSubareas);
+router.post('/subareas', areaController.addSubarea);
 
 // Analytics
 router.get('/analytics', analyticsController.getAnalytics);
