@@ -100,9 +100,24 @@ exports.getExpenses = async (req, res) => {
     }
 };
 
+exports.getExpenseById = async (req, res) => {
+    try {
+        const expense = await Expense.findById(req.params.id).populate('category', 'name');
+        if (!expense) return res.status(404).json({ message: 'Expense not found' });
+        res.json(expense);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 exports.addExpense = async (req, res) => {
     try {
-        const expense = new Expense(req.body);
+        const data = req.body;
+        if (req.file) {
+            data.receiptUrl = `/uploads/expenses/${req.file.filename}`;
+        }
+
+        const expense = new Expense(data);
         await expense.save();
         const populatedExpense = await expense.populate('category', 'name');
         res.status(201).json(populatedExpense);
@@ -113,9 +128,14 @@ exports.addExpense = async (req, res) => {
 
 exports.updateExpense = async (req, res) => {
     try {
+        const data = req.body;
+        if (req.file) {
+            data.receiptUrl = `/uploads/expenses/${req.file.filename}`;
+        }
+
         const expense = await Expense.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            data,
             { new: true, runValidators: true }
         ).populate('category', 'name');
 

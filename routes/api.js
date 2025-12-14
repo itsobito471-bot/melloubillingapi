@@ -48,10 +48,15 @@ router.post('/expenses/categories', expenseController.addCategory);
 router.patch('/expenses/categories/:id', expenseController.updateCategory);
 router.delete('/expenses/categories/:id', expenseController.deleteCategory);
 
+const upload = require('../middleware/upload');
+
+// ... imports ...
+
 // Expenses - Items
 router.get('/expenses', expenseController.getExpenses);
-router.post('/expenses', expenseController.addExpense);
-router.patch('/expenses/:id', expenseController.updateExpense);
+router.get('/expenses/:id', expenseController.getExpenseById);
+router.post('/expenses', upload.single('receipt'), expenseController.addExpense);
+router.patch('/expenses/:id', upload.single('receipt'), expenseController.updateExpense);
 router.delete('/expenses/:id', expenseController.deleteExpense);
 
 // Analytics

@@ -14,6 +14,7 @@ app.use(bodyParser.json());
 app.use(morgan('dev'));
 const apiRoutes = require('./routes/api');
 app.use('/api', apiRoutes);
+app.use('/uploads', express.static('uploads'));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)

@@ -24,7 +24,8 @@ const ExpenseSchema = new mongoose.Schema({
         type: String,
         enum: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'],
         default: 'Cash'
-    }
+    },
+    receiptUrl: String
 }, {
     timestamps: true
 });
