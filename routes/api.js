@@ -8,6 +8,7 @@ const clientController = require('../controllers/clientController');
 const areaController = require('../controllers/areaController');
 const analyticsController = require('../controllers/analyticsController');
 const authController = require('../controllers/authController');
+const expenseController = require('../controllers/expenseController');
 
 // Auth routes (public)
 router.post('/auth/register', authController.register);
@@ -40,6 +41,18 @@ router.post('/areas', areaController.addArea);
 // Subareas
 router.get('/subareas', areaController.getSubareas);
 router.post('/subareas', areaController.addSubarea);
+
+// Expenses - Categories
+router.get('/expenses/categories', expenseController.getCategories);
+router.post('/expenses/categories', expenseController.addCategory);
+router.patch('/expenses/categories/:id', expenseController.updateCategory);
+router.delete('/expenses/categories/:id', expenseController.deleteCategory);
+
+// Expenses - Items
+router.get('/expenses', expenseController.getExpenses);
+router.post('/expenses', expenseController.addExpense);
+router.patch('/expenses/:id', expenseController.updateExpense);
+router.delete('/expenses/:id', expenseController.deleteExpense);
 
 // Analytics
 router.get('/analytics', analyticsController.getAnalytics);
