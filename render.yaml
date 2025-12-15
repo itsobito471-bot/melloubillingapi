@@ -11,4 +11,3 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
-git add render.yaml
