@@ -61,5 +61,6 @@ router.delete('/expenses/:id', expenseController.deleteExpense);
 
 // Analytics
 router.get('/analytics', analyticsController.getAnalytics);
+router.get('/dashboard/stats', analyticsController.getDashboardStats);
 
 module.exports = router;
