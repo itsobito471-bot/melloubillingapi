@@ -13,6 +13,7 @@ const ClientSchema = new mongoose.Schema({
     area: { type: String },
     subarea: { type: String },
     address: String,
+    gstin: String,
     status: {
         type: String,
         enum: ['Active', 'Inactive'],

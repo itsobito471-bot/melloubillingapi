@@ -63,4 +63,9 @@ router.delete('/expenses/:id', expenseController.deleteExpense);
 router.get('/analytics', analyticsController.getAnalytics);
 router.get('/dashboard/stats', analyticsController.getDashboardStats);
 
+// Settings
+const settingController = require('../controllers/settingController');
+router.get('/settings', settingController.getSettings);
+router.post('/settings', settingController.updateSetting);
+
 module.exports = router;
