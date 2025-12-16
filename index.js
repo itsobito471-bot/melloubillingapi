@@ -16,6 +16,23 @@ const apiRoutes = require('./routes/api');
 app.use('/api', apiRoutes);
 app.use('/uploads', express.static('uploads'));
 
+
+//setup for production
+
+const https = require('https');
+
+const url = 'https://mellou-billing.onrender.com/api/health';
+
+setInterval(() => {
+    https.get(url, (res) => {
+        console.log(`Ping sent to ${url}. Status: ${res.statusCode}`);
+    }).on('error', (e) => {
+        console.error(`Ping failed: ${e.message}`);
+    });
+}, 14 * 60 * 1000);
+
+//--------------------------------------------------
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('MongoDB connected successfully'))

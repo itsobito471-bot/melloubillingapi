@@ -9,6 +9,7 @@ const areaController = require('../controllers/areaController');
 const analyticsController = require('../controllers/analyticsController');
 const authController = require('../controllers/authController');
 const expenseController = require('../controllers/expenseController');
+const healthController = require('../controllers/healthController');
 
 // Auth routes (public)
 router.post('/auth/register', authController.register);
@@ -67,5 +68,9 @@ router.get('/dashboard/stats', analyticsController.getDashboardStats);
 const settingController = require('../controllers/settingController');
 router.get('/settings', settingController.getSettings);
 router.post('/settings', settingController.updateSetting);
+
+
+//health
+router.get('/health', healthController.getHealth);
 
 module.exports = router;
