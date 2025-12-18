@@ -109,16 +109,13 @@ exports.downloadBillPDF = async (req, res) => {
         };
 
         const startX = 50;
-        const endX = 545;
+        const endX = 545; // This is the right alignment edge
         const contentWidth = endX - startX;
 
         // --- HELPER: FORMAT CURRENCY ---
-        // FIX: Changed '₹' to 'Rs.' because standard PDF fonts don't support the symbol
         const formatCurrency = (amount) => `Rs. ${parseFloat(amount).toFixed(2)}`;
 
         // --- 1. HEADER SECTION ---
-
-        // Logo
         const logoPath = path.join(__dirname, '../assets/logo.png');
         if (fs.existsSync(logoPath)) {
             doc.image(logoPath, startX, 45, { width: 40 });
@@ -137,20 +134,25 @@ exports.downloadBillPDF = async (req, res) => {
         doc.text('Ernakulam, Kerala, 682020', headerTextX, headerY + 24);
 
         // --- 2. INVOICE TITLE & ARROW ---
-
         const titleY = 130;
 
-        // "Invoice" Text
         doc.font(fonts.bold).fontSize(36).fillColor(colors.black)
             .text('Invoice', startX, titleY);
 
-        // Custom Arrow
+        // --- FIXED ARROW (South-West / Down-Left) ---
         doc.save();
-        doc.translate(endX - 20, titleY + 10);
+        // Move to top-right area
+        doc.translate(endX - 25, titleY + 5);
         doc.lineWidth(1.5).strokeColor(colors.black);
-        doc.moveTo(0, 20).lineTo(20, 0).stroke();
-        doc.moveTo(20, 0).lineTo(0, 0).stroke();
-        doc.moveTo(20, 0).lineTo(20, 20).stroke();
+
+        // Draw diagonal line from Top-Right (20,0) to Bottom-Left (0,20)
+        doc.moveTo(20, 0).lineTo(0, 20).stroke();
+
+        // Draw Arrowhead at Bottom-Left (0,20)
+        // Line going Up
+        doc.moveTo(0, 20).lineTo(0, 0).stroke();
+        // Line going Right
+        doc.moveTo(0, 20).lineTo(20, 20).stroke();
         doc.restore();
 
         // Horizontal Line
@@ -172,61 +174,67 @@ exports.downloadBillPDF = async (req, res) => {
             .text(dateStr, valueX, metaY)
             .text(bill.billNumber, valueX, metaY + 16);
 
-        // Right Side: Contact
-        const phoneText = '9526217009';
-        doc.font(fonts.bold).fontSize(10).text(phoneText, 450, metaY, { align: 'right', width: 95 });
+        // --- RIGHT SIDE CONTACT (FIXED ALIGNMENT) ---
+        // 1. Calculate Positions
+        // We want the ICONS to end exactly at 'endX'
+        // Icons are roughly 10px wide.
+        const iconWidth = 12;
+        const iconX = endX - iconWidth;
+
+        // Text ends before the icon starts
+        const textRightEdge = iconX - 8;
+        const textWidth = 100;
+        const textX = textRightEdge - textWidth;
+
+        // 2. Render Text
+        doc.font(fonts.bold).fontSize(10)
+            .text('9526217009', textX, metaY, { align: 'right', width: textWidth });
+
+        doc.font(fonts.regular).fontSize(10)
+            .text('www.mellou.in', textX, metaY + 16, { align: 'right', width: textWidth });
+
+        // 3. Render Icons (Aligned to Right Edge)
 
         // Phone Icon
-        doc.save().translate(endX + 5, metaY + 2);
-        doc.path('M2.5 1.5 C2.5 1.5 4 4 4 4 C4 4 6 3 6 3 C6 3 8 5 8 5 C8 5 7 7 7 7 C7 7 8 8 9.5 8 C11 8 12 7 12 7 C12 7 10 9 10 9 C10 9 8 11 8 11 C8 11 2.5 5.5 2.5 5.5 C2.5 5.5 0.5 3.5 0.5 3.5 C0.5 3.5 2.5 1.5 2.5 1.5 Z')
+        doc.save().translate(iconX, metaY + 1);
+        doc.scale(0.8);
+        doc.path('M3.5,0.5 C2.5,1.5 1.5,3.5 1.5,3.5 C1.5,3.5 3.5,5.5 5,4 C5,4 6,3 7,3 C7,3 9,5 9,5 C9,5 8,7 8,7 C8,7 10,9 10.5,8.5 C12,7 13,6 13,6 C13,6 11,11 11,11 C11,11 5,10 2,7 C-1,4 0,0 0,0 L3.5,0.5 Z')
             .fill(colors.black).restore();
 
-        const webText = 'www.mellou.in';
-        doc.text(webText, 450, metaY + 16, { align: 'right', width: 95 });
-
         // Globe Icon
-        doc.save().translate(endX + 5, metaY + 18);
-        doc.circle(5, 5, 4.5).lineWidth(1).stroke();
-        doc.moveTo(5, 0.5).lineTo(5, 9.5).stroke();
-        doc.moveTo(0.5, 5).lineTo(9.5, 5).stroke();
+        doc.save().translate(iconX, metaY + 16);
+        doc.translate(5, 5);
+        doc.lineWidth(1).strokeColor(colors.black);
+        doc.circle(0, 0, 4.5).stroke();
+        doc.moveTo(0, -4.5).lineTo(0, 4.5).stroke();
+        doc.moveTo(-4.5, 0).lineTo(4.5, 0).stroke();
+        doc.path('M-2.5,-3.5 Q-4,0 -2.5,3.5 M2.5,-3.5 Q4,0 2.5,3.5').stroke();
         doc.restore();
 
-        // --- 4. BILL TO (FIXED OVERLAP) ---
+        // --- 4. BILL TO ---
         const billToY = metaY + 50;
         doc.font(fonts.bold).fontSize(10).fillColor(colors.black)
             .text('Billed to:', startX, billToY);
 
-        // Reset Y cursor to start of client info
         doc.y = billToY + 20;
 
         doc.font(fonts.regular).fontSize(10);
-
-        // 1. Name
         doc.text(bill.client.name, startX);
-        doc.moveDown(0.3); // Small gap
-
-        // 2. Address (Allow wrapping)
-        // This will automatically push doc.y down if it takes 2-3 lines
-        doc.text(bill.client.address || '', startX, doc.y, { width: 300, lineGap: 2 });
-
-        doc.moveDown(0.3); // Small gap
-
-        // 3. Phone (Now positioned dynamically relative to address)
+        doc.moveDown(0.2);
+        doc.text(bill.client.address || '', startX, doc.y, { width: 300, align: 'left', lineGap: 2 });
+        doc.moveDown(0.5);
         doc.text(bill.client.phone || '', startX, doc.y);
 
         // --- 5. MAIN TABLE ---
+        let tableTop = doc.y + 25;
+        if (tableTop < billToY + 80) tableTop = billToY + 80;
 
-        // Calculate where the table should start based on where the address ended
-        // We ensure a minimum distance, or use the dynamic position + padding
-        let tableTop = Math.max(doc.y + 30, billToY + 80);
-
-        // Column Configuration
         const colDesc = startX + 10;
         const colQty = 340;
         const colPrice = 410;
         const colTotal = 480;
 
-        // A. Header Bar
+        // Header
         const headerHeight = 25;
         doc.rect(startX, tableTop, contentWidth, headerHeight).fill(colors.black);
 
@@ -236,18 +244,19 @@ exports.downloadBillPDF = async (req, res) => {
         doc.text('PRICE', colPrice, tableTop + 8, { width: 60, align: 'right' });
         doc.text('TOTAL', colTotal, tableTop + 8, { width: 55, align: 'right' });
 
-        // B. Items Loop
+        // Items
         let currentY = tableTop + headerHeight + 15;
         doc.fillColor(colors.black).font(fonts.regular).fontSize(10);
 
         bill.items.forEach(item => {
             const total = item.quantity * item.price;
 
+            if (currentY > 700) { doc.addPage(); currentY = 50; }
+
             doc.text(item.name, colDesc, currentY, { width: 250 });
             doc.text(item.quantity, colQty, currentY, { width: 60, align: 'center' });
             doc.text(formatCurrency(item.price), colPrice, currentY, { width: 60, align: 'right' });
             doc.text(formatCurrency(total), colTotal, currentY, { width: 55, align: 'right' });
-
             currentY += 25;
         });
 
@@ -255,18 +264,18 @@ exports.downloadBillPDF = async (req, res) => {
         doc.moveTo(startX, currentY).lineTo(endX, currentY).lineWidth(0.5).strokeColor(colors.lightGray).stroke();
         currentY += 15;
 
-        // C. Totals Section
+        // Totals
         const totalsLabelX = 350;
         const totalsValX = 435;
         const totalsValWidth = 100;
 
-        // Subtotal
+        if (currentY > 650) { doc.addPage(); currentY = 50; }
+
         doc.font(fonts.regular).fontSize(10);
         doc.text('Subtotal:', totalsLabelX, currentY, { align: 'right', width: 80 });
         doc.text(formatCurrency(bill.totalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 20;
 
-        // Tax
         const taxVal = (bill.totalAmount * 0.025).toFixed(2);
         doc.text('Tax (2.5%):', totalsLabelX, currentY, { align: 'right', width: 80 });
         doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
@@ -276,32 +285,25 @@ exports.downloadBillPDF = async (req, res) => {
         doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 25;
 
-        // Grand Total
         doc.font(fonts.bold).fontSize(12);
         doc.text('Grand Total:', totalsLabelX, currentY, { align: 'right', width: 80 });
         doc.text(formatCurrency(bill.finalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 25;
 
-        // Draw Outer Border
         doc.rect(startX, tableTop, contentWidth, currentY - tableTop).lineWidth(1).strokeColor(colors.black).stroke();
 
         // --- 6. PAYMENT INFO ---
-        if (currentY > 650) {
-            doc.addPage();
-            currentY = 50;
-        }
+        if (currentY > 650) { doc.addPage(); currentY = 50; }
 
         const payBoxY = currentY + 20;
         const payBoxHeight = 85;
 
         doc.rect(startX, payBoxY, contentWidth, payBoxHeight).lineWidth(1).strokeColor(colors.black).stroke();
-
         doc.font(fonts.bold).fontSize(10).fillColor(colors.black)
             .text('PAYMENT INFO', startX + 15, payBoxY + 15);
 
         const bankY = payBoxY + 35;
         const lh = 15;
-
         doc.font(fonts.bold).fontSize(9);
         doc.text(`•   Account Name: Mellou`, startX + 15, bankY);
         doc.text(`•   Account No: 50200085316071`, startX + 15, bankY + lh);
@@ -309,15 +311,12 @@ exports.downloadBillPDF = async (req, res) => {
 
         // --- 7. FOOTER ---
         const footerY = payBoxY + payBoxHeight + 30;
-
         doc.font(fonts.bold).fontSize(16).fillColor(colors.black)
             .text('THANK YOU FOR', startX, footerY)
             .text('YOUR BUSINESS', startX, footerY + 20);
 
-        // --- 8. PURPLE BOTTOM BAR ---
-        const pageHeight = 841.89;
-        const pageWidth = 595.28;
-        doc.rect(0, pageHeight - 15, pageWidth, 15).fill(colors.primary);
+        // --- 8. PURPLE BAR ---
+        doc.rect(0, 841.89 - 15, 595.28, 15).fill(colors.primary);
 
         doc.end();
 
