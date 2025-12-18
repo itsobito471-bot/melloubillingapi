@@ -194,9 +194,10 @@ exports.downloadBillPDF = async (req, res) => {
             .text(bill.client.address || '', 50, billToY + 30)
             .text(bill.client.phone || '', 50, billToY + 42);
 
-        // --- MAIN BOX (TABLE + TOTALS + PAYMENT INFO) ---
+        // --- MAIN BOX (TABLE + TOTALS) ---
 
         const boxTop = billToY + 70;
+        // Adjusted columns to prevent wrapping: Increase QTY width, adjust margins
         const col = { desc: 15, qty: 300, price: 375, total: 445 };
         const colWidths = { desc: 275, qty: 60, price: 60, total: 60 };
 
@@ -225,36 +226,23 @@ exports.downloadBillPDF = async (req, res) => {
             y += 25; // Row height
         });
 
-        // Add some spacing
+        // Add some spacing before totals
         y += 10;
 
-        // 3. Divider Line (Separating Items from Footer Section)
-        doc.moveTo(50, y).lineTo(545, y).lineWidth(0.5).strokeColor(colors.black).stroke();
+        // Divider line inside box
+        doc.moveTo(50, y).lineTo(545, y).lineWidth(0.5).strokeColor(colors.lightGray).stroke();
+        y += 15;
 
-        // --- FOOTER SECTION (inside the box) ---
-        const footerStart = y + 15;
-
-        // Left Side: Payment Info
-        const payY = footerStart;
-        doc.font(fontBold).fontSize(11).fillColor(colors.black)
-            .text('PAYMENT INFO', 65, payY);
-
-        doc.font(fontBold).fontSize(9)
-            .text('•  Account Name: ' + settings.bank.accName, 65, payY + 20)
-            .text('•  Account No: ' + settings.bank.accNo, 65, payY + 35)
-            .text('•  IFSC Code: ' + settings.bank.ifsc, 65, payY + 50);
-
-        // Right Side: Totals
+        // 3. Totals (Right Aligned inside Box)
         const totalsXLabel = 340;
         const totalsXValue = 460;
         const totalsValWidth = 70;
-        let tY = footerStart;
 
         const addTotalLine = (label, value, isBold = false) => {
             doc.font(isBold ? fontBold : fontRegular).fontSize(10).fillColor(colors.black)
-                .text(label, totalsXLabel, tY, { align: 'right', width: 110 })
-                .text(value, totalsXValue, tY, { align: 'right', width: totalsValWidth });
-            tY += 18;
+                .text(label, totalsXLabel, y, { align: 'right', width: 110 })
+                .text(value, totalsXValue, y, { align: 'right', width: totalsValWidth });
+            y += 18;
         };
 
         addTotalLine('Subtotal:', formatCurrency(bill.totalAmount));
@@ -263,29 +251,40 @@ exports.downloadBillPDF = async (req, res) => {
         addTotalLine('Tax (2.5%):', formatCurrency(taxVal));
         addTotalLine('Tax (2.5%):', formatCurrency(taxVal));
 
-        tY += 5;
-        // Grand Total (Black Text, No Box)
-        doc.font(fontBold).fontSize(12).fillColor(colors.black)
-            .text('Grand Total:', totalsXLabel, tY, { align: 'right', width: 110 });
-        doc.text(formatCurrency(bill.finalAmount), totalsXValue, tY, { align: 'right', width: totalsValWidth });
+        y += 5;
+        doc.font(fontBold).fontSize(12).text('Grand Total:', totalsXLabel, y, { align: 'right', width: 110 });
+        doc.text(formatCurrency(bill.finalAmount), totalsXValue, y, { align: 'right', width: totalsValWidth });
+        y += 25; // Padding bottom
 
-        // Calculate final Y for the box border
-        // Use the lower of Payment Info or Totals
-        const finalContentY = Math.max(payY + 60, tY + 15);
-        y = finalContentY + 15; // Bottom padding
-
-        // 4. DRAW THE BOX BORDER (Enclosing everything)
-        // Check for page break if box is too large? (Simplified for now)
+        // 4. DRAW THE BOX BORDER
         doc.rect(50, boxTop, 495, y - boxTop).lineWidth(1).strokeColor(colors.black).stroke();
 
-        // --- THANK YOU MESSAGE ---
-        const bottomY = y + 30; // Below the box
+        // --- PAYMENT INFO ---
+        // Separate Box below
+        if (y > 660) { doc.addPage(); y = 50; } // Adjusted threshold
+
+        const payY = y + 20;
+        const payHeight = 85;
+
+        doc.rect(50, payY, 495, payHeight).lineWidth(1).strokeColor(colors.black).stroke();
+
+        doc.font(fontBold).fontSize(11).fillColor(colors.black)
+            .text('PAYMENT INFO', 65, payY + 15);
+
+        doc.font(fontBold).fontSize(9)
+            .text('•  Account Name: ' + settings.bank.accName, 65, payY + 35)
+            .text('•  Account No: ' + settings.bank.accNo, 65, payY + 50)
+            .text('•  IFSC Code: ' + settings.bank.ifsc, 65, payY + 65);
+
+        // --- FOOTER ---
+        const footerY = payY + payHeight + 30;
 
         doc.font(fontBold).fontSize(16).fillColor(colors.black)
-            .text('THANK YOU FOR', 50, bottomY)
-            .text('YOUR BUSINESS', 50, bottomY + 20);
+            .text('THANK YOU FOR', 50, footerY)
+            .text('YOUR BUSINESS', 50, footerY + 20);
 
         // --- BOTTOM RECTANGLE (Purple) ---
+        // Draw at bottom of A4 (841.89 pt height)
         const pageHeight = 841.89;
         const pageWidth = 595.28;
         const barHeight = 15;
