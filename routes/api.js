@@ -15,6 +15,13 @@ const healthController = require('../controllers/healthController');
 router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
 router.get('/auth/me', authMiddleware, authController.getMe);
+router.post('/auth/change-password', authMiddleware, authController.changePassword);
+
+// Notifications
+const notificationController = require('../controllers/notificationController');
+router.get('/notifications', authMiddleware, notificationController.getNotifications);
+router.patch('/notifications/:id/read', authMiddleware, notificationController.markAsRead);
+router.post('/notifications/read-all', authMiddleware, notificationController.markAllAsRead);
 
 // Protected routes
 router.use(authMiddleware);
