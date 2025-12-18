@@ -91,17 +91,34 @@ exports.downloadBillPDF = async (req, res) => {
 
         const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
 
+        // --- 1. REGISTER CUSTOM FONTS ---
+        // Make sure the paths point to where you saved the .ttf files
+        const fontPathRegular = path.join(__dirname, '../assets/fonts/Poppins-Regular.ttf');
+        const fontPathBold = path.join(__dirname, '../assets/fonts/Poppins-Bold.ttf');
+
+        // Check if font files exist to avoid crashing if they are missing
+        if (fs.existsSync(fontPathRegular) && fs.existsSync(fontPathBold)) {
+            doc.registerFont('Poppins-Regular', fontPathRegular);
+            doc.registerFont('Poppins-Bold', fontPathBold);
+        } else {
+            console.warn('Poppins fonts not found, falling back to Helvetica');
+        }
+
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=invoice-${bill.billNumber}.pdf`);
         doc.pipe(res);
 
-        // --- CONSTANTS ---
+        // --- 2. UPDATE FONT CONSTANTS ---
+        // If the custom font was registered successfully, use it. Otherwise fallback.
+        const useCustomFont = fs.existsSync(fontPathRegular);
+
         const fonts = {
-            regular: 'Helvetica',
-            bold: 'Helvetica-Bold'
+            regular: useCustomFont ? 'Poppins-Regular' : 'Helvetica',
+            bold: useCustomFont ? 'Poppins-Bold' : 'Helvetica-Bold'
         };
+
         const colors = {
-            primary: '#b78fd1', // Mellou Purple
+            primary: '#b78fd1',
             black: '#000000',
             darkGray: '#333333',
             lightGray: '#E0E0E0',
@@ -186,30 +203,25 @@ exports.downloadBillPDF = async (req, res) => {
         const textWidth = 100;
         const textX = textRightEdge - textWidth;
 
-        // 2. Render Text
+        // Right: Contact Info (Text and Icons)
+        // Adjust alignment to include icons
+        const iconSize = 10;
+        const iconX_new = 535; // Far right position for icons
+        const textRightAlign = 525; // Text ends before icon
+
+        // Phone Text
         doc.font(fonts.bold).fontSize(10)
-            .text('9526217009', textX, metaY, { align: 'right', width: textWidth });
+            .text('9526217009', 350, metaY, { align: 'right', width: textRightAlign - 350 });
 
+
+
+        // Website Text
         doc.font(fonts.regular).fontSize(10)
-            .text('www.mellou.in', textX, metaY + 16, { align: 'right', width: textWidth });
+            .text('www.mellou.in', 350, metaY + 15, { align: 'right', width: textRightAlign - 350 });
 
-        // 3. Render Icons (Aligned to Right Edge)
 
-        // Phone Icon
-        doc.save().translate(iconX, metaY + 1);
-        doc.scale(0.8);
-        doc.path('M3.5,0.5 C2.5,1.5 1.5,3.5 1.5,3.5 C1.5,3.5 3.5,5.5 5,4 C5,4 6,3 7,3 C7,3 9,5 9,5 C9,5 8,7 8,7 C8,7 10,9 10.5,8.5 C12,7 13,6 13,6 C13,6 11,11 11,11 C11,11 5,10 2,7 C-1,4 0,0 0,0 L3.5,0.5 Z')
-            .fill(colors.black).restore();
 
-        // Globe Icon
-        doc.save().translate(iconX, metaY + 16);
-        doc.translate(5, 5);
-        doc.lineWidth(1).strokeColor(colors.black);
-        doc.circle(0, 0, 4.5).stroke();
-        doc.moveTo(0, -4.5).lineTo(0, 4.5).stroke();
-        doc.moveTo(-4.5, 0).lineTo(4.5, 0).stroke();
-        doc.path('M-2.5,-3.5 Q-4,0 -2.5,3.5 M2.5,-3.5 Q4,0 2.5,3.5').stroke();
-        doc.restore();
+
 
         // --- 4. BILL TO ---
         const billToY = metaY + 50;
