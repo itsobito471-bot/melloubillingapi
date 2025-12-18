@@ -70,7 +70,20 @@ router.get('/settings', settingController.getSettings);
 router.post('/settings', settingController.updateSetting);
 
 
-//health
+// Health
 router.get('/health', healthController.getHealth);
+
+// User Management (Admin only)
+const userController = require('../controllers/userController');
+const adminCheck = (req, res, next) => {
+    if (req.userRole !== 'admin') {
+        return res.status(403).json({ message: 'Access denied: Requires admin role' });
+    }
+    next();
+};
+
+router.get('/users', adminCheck, userController.getAllUsers);
+router.post('/users', adminCheck, userController.createUser);
+router.patch('/users/:id/status', adminCheck, userController.toggleUserStatus);
 
 module.exports = router;

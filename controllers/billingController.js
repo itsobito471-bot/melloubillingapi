@@ -213,11 +213,27 @@ exports.downloadBillPDF = async (req, res) => {
         doc.font(fonts.bold).fontSize(10)
             .text('9526217009', 350, metaY, { align: 'right', width: textRightAlign - 350 });
 
-
+        // Phone Icon (Fixed Alignment)
+        doc.save()
+            .translate(iconX_new, metaY + 1)
+            .scale(0.35) // Smaller scale factor
+            .path('M6.62,10.79a15.053,15.053,0,0,0,6.59,6.59l2.2-2.2a1,1,0,0,1,1.02-.24,11.72,11.72,0,0,0,3.69.59,1,1,0,0,1,1,1V20a1,1,0,0,1-1,1A19,19,0,0,1,1,2a1,1,0,0,1,1-1H5.5a1,1,0,0,1,1,1,11.72,11.72,0,0,0,.59,3.69,1,1,0,0,1-.24,1.02Z')
+            .fillColor(colors.black)
+            .fill()
+            .restore();
 
         // Website Text
         doc.font(fonts.regular).fontSize(10)
             .text('www.mellou.in', 350, metaY + 15, { align: 'right', width: textRightAlign - 350 });
+
+        // Website Icon (Fixed Alignment)
+        doc.save()
+            .translate(iconX_new, metaY + 16)
+            .scale(0.35) // Smaller scale factor
+            .path('M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,0,1-8-8A8,8,0,0,1,12,4a8,8,0,0,1,8,8A8,8,0,0,1,12,20ZM12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z')
+            .fillColor(colors.black)
+            .fill()
+            .restore();
 
 
 
