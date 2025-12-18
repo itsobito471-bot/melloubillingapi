@@ -89,208 +89,235 @@ exports.downloadBillPDF = async (req, res) => {
         const bill = await Bill.findById(req.params.id).populate('client');
         if (!bill) return res.status(404).json({ message: 'Bill not found' });
 
-        const settings = {
-            companyName: "mellou",
-            addressLine1: "CC 54/2593 5, Bose Nagar",
-            addressLine2: "Road, Kadavanthara, Kochi,",
-            addressLine3: "Ernakulam, Kerala, 682020",
-            phone: "9526217009",
-            website: "www.mellou.in",
-            bank: {
-                accName: "Mellou",
-                accNo: "50200085316071",
-                ifsc: "HDFC0000295"
-            }
-        };
-
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=invoice-${bill.billNumber}.pdf`);
         doc.pipe(res);
 
-        // --- FONTS & COLORS ---
-        const fontRegular = 'Helvetica';
-        const fontBold = 'Helvetica-Bold';
+        // --- CONSTANTS ---
+        const fonts = {
+            regular: 'Helvetica',
+            bold: 'Helvetica-Bold'
+        };
         const colors = {
-            primary: '#b78fd1',    // Mellou Purple
+            primary: '#b78fd1', // Mellou Purple
             black: '#000000',
-            darkGray: '#231F20',
-            lightGray: '#E6E6E6',
+            darkGray: '#333333',
+            lightGray: '#E0E0E0',
             white: '#FFFFFF'
         };
 
-        // --- HELPER: CURRENCY ---
+        const startX = 50;
+        const endX = 545;
+        const contentWidth = endX - startX;
+
+        // --- HELPER: FORMAT CURRENCY ---
+        // FIX: Changed '₹' to 'Rs.' because standard PDF fonts don't support the symbol
         const formatCurrency = (amount) => `Rs. ${parseFloat(amount).toFixed(2)}`;
 
-        // --- HEADER SECTION ---
+        // --- 1. HEADER SECTION ---
 
-        // 1. Logo (Top Left)
+        // Logo
         const logoPath = path.join(__dirname, '../assets/logo.png');
         if (fs.existsSync(logoPath)) {
-            doc.image(logoPath, 50, 45, { width: 45 });
+            doc.image(logoPath, startX, 45, { width: 40 });
         }
 
-        // 2. Company Details (Next to Logo)
-        const headerTextX = 110;
-        let headerY = 50;
+        const headerTextX = 100;
+        let headerY = 45;
 
-        doc.font(fontBold).fontSize(16).fillColor(colors.black)
-            .text(settings.companyName, headerTextX, headerY);
+        doc.font(fonts.bold).fontSize(16).fillColor(colors.primary)
+            .text('mellou', headerTextX, headerY);
 
-        doc.font(fontRegular).fontSize(8).fillColor(colors.darkGray)
-            .text(settings.addressLine1, headerTextX, headerY + 18)
-            .text(settings.addressLine2, headerTextX, headerY + 30)
-            .text(settings.addressLine3, headerTextX, headerY + 42);
+        headerY += 20;
+        doc.font(fonts.regular).fontSize(8).fillColor(colors.darkGray);
+        doc.text('CC 54/2593 5, Bose Nagar', headerTextX, headerY);
+        doc.text('Road, Kadavanthara, Kochi,', headerTextX, headerY + 12);
+        doc.text('Ernakulam, Kerala, 682020', headerTextX, headerY + 24);
 
-        // 3. Arrow Icon (Top Right) - Simulated
-        // Draw an arrow pointing North-East, aligned with Invoice Title
-        // Invoice Title is at Y=130
-        doc.save()
-            .translate(500, 130) // Move down to align with Invoice
-            .scale(1.5)
-            .path('M10 0 L20 0 L20 10 M20 0 L0 20') // Simple arrow path
-            .lineWidth(1.5)
-            .strokeColor(colors.black)
-            .stroke()
-            .restore();
+        // --- 2. INVOICE TITLE & ARROW ---
 
-        // 4. Invoice Title (Large, Separated)
         const titleY = 130;
-        doc.font(fontBold).fontSize(36).fillColor(colors.black)
-            .text('Invoice', 50, titleY);
 
-        // 5. Horizontal Line
-        doc.moveTo(50, titleY + 45).lineTo(545, titleY + 45).lineWidth(1).strokeColor(colors.black).stroke();
+        // "Invoice" Text
+        doc.font(fonts.bold).fontSize(36).fillColor(colors.black)
+            .text('Invoice', startX, titleY);
 
-        // --- META INFO ---
-        const metaY = titleY + 60;
+        // Custom Arrow
+        doc.save();
+        doc.translate(endX - 20, titleY + 10);
+        doc.lineWidth(1.5).strokeColor(colors.black);
+        doc.moveTo(0, 20).lineTo(20, 0).stroke();
+        doc.moveTo(20, 0).lineTo(0, 0).stroke();
+        doc.moveTo(20, 0).lineTo(20, 20).stroke();
+        doc.restore();
 
-        // Left: Date & Invoice No
-        const labelX = 50;
-        const valueX = 120;
+        // Horizontal Line
+        doc.moveTo(startX, titleY + 45).lineTo(endX, titleY + 45).lineWidth(1).strokeColor(colors.black).stroke();
 
-        doc.font(fontBold).fontSize(10).fillColor(colors.black)
-            .text('Date :', labelX, metaY)
-            .text('Invoice No.', labelX, metaY + 15);
+        // --- 3. META INFO ---
+        const metaY = titleY + 65;
+
+        // Left Side: Date & No
+        const labelX = startX;
+        const valueX = startX + 70;
+
+        doc.font(fonts.bold).fontSize(10).fillColor(colors.black);
+        doc.text('Date :', labelX, metaY);
+        doc.text('Invoice No.', labelX, metaY + 16);
 
         const dateStr = new Date(bill.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-        doc.font(fontRegular)
+        doc.font(fonts.regular)
             .text(dateStr, valueX, metaY)
-            .text(bill.billNumber, valueX, metaY + 15);
+            .text(bill.billNumber, valueX, metaY + 16);
 
-        // Right: Contact Info (Text only)
-        doc.font(fontRegular).fontSize(10)
-            .text(settings.phone, 350, metaY, { align: 'right' })
-            .text(settings.website, 350, metaY + 15, { align: 'right' });
+        // Right Side: Contact
+        const phoneText = '9526217009';
+        doc.font(fonts.bold).fontSize(10).text(phoneText, 450, metaY, { align: 'right', width: 95 });
 
-        // --- BILL TO ---
-        const billToY = metaY + 45;
-        doc.font(fontBold).fontSize(11).fillColor(colors.black)
-            .text('Billed to:', 50, billToY);
+        // Phone Icon
+        doc.save().translate(endX + 5, metaY + 2);
+        doc.path('M2.5 1.5 C2.5 1.5 4 4 4 4 C4 4 6 3 6 3 C6 3 8 5 8 5 C8 5 7 7 7 7 C7 7 8 8 9.5 8 C11 8 12 7 12 7 C12 7 10 9 10 9 C10 9 8 11 8 11 C8 11 2.5 5.5 2.5 5.5 C2.5 5.5 0.5 3.5 0.5 3.5 C0.5 3.5 2.5 1.5 2.5 1.5 Z')
+            .fill(colors.black).restore();
 
-        doc.font(fontRegular).fontSize(10)
-            .text(bill.client.name, 50, billToY + 18)
-            .text(bill.client.address || '', 50, billToY + 30)
-            .text(bill.client.phone || '', 50, billToY + 42);
+        const webText = 'www.mellou.in';
+        doc.text(webText, 450, metaY + 16, { align: 'right', width: 95 });
 
-        // --- MAIN BOX (TABLE + TOTALS) ---
+        // Globe Icon
+        doc.save().translate(endX + 5, metaY + 18);
+        doc.circle(5, 5, 4.5).lineWidth(1).stroke();
+        doc.moveTo(5, 0.5).lineTo(5, 9.5).stroke();
+        doc.moveTo(0.5, 5).lineTo(9.5, 5).stroke();
+        doc.restore();
 
-        const boxTop = billToY + 70;
-        // Adjusted columns to prevent wrapping: Increase QTY width, adjust margins
-        const col = { desc: 15, qty: 300, price: 375, total: 445 };
-        const colWidths = { desc: 275, qty: 60, price: 60, total: 60 };
+        // --- 4. BILL TO (FIXED OVERLAP) ---
+        const billToY = metaY + 50;
+        doc.font(fonts.bold).fontSize(10).fillColor(colors.black)
+            .text('Billed to:', startX, billToY);
 
-        // 1. Header Bar (Black)
-        doc.rect(50, boxTop, 495, 25).fill(colors.black);
+        // Reset Y cursor to start of client info
+        doc.y = billToY + 20;
 
-        doc.fillColor(colors.white).font(fontBold).fontSize(9)
-            .text('DESCRIPTION', 50 + col.desc, boxTop + 8)
-            .text('QUANTITY', 50 + col.qty, boxTop + 8, { width: colWidths.qty, align: 'center' })
-            .text('PRICE', 50 + col.price, boxTop + 8, { width: colWidths.price, align: 'right' })
-            .text('TOTAL', 50 + col.total, boxTop + 8, { width: colWidths.total, align: 'right' });
+        doc.font(fonts.regular).fontSize(10);
 
-        // 2. Items
-        let y = boxTop + 35;
-        doc.fillColor(colors.black);
+        // 1. Name
+        doc.text(bill.client.name, startX);
+        doc.moveDown(0.3); // Small gap
+
+        // 2. Address (Allow wrapping)
+        // This will automatically push doc.y down if it takes 2-3 lines
+        doc.text(bill.client.address || '', startX, doc.y, { width: 300, lineGap: 2 });
+
+        doc.moveDown(0.3); // Small gap
+
+        // 3. Phone (Now positioned dynamically relative to address)
+        doc.text(bill.client.phone || '', startX, doc.y);
+
+        // --- 5. MAIN TABLE ---
+
+        // Calculate where the table should start based on where the address ended
+        // We ensure a minimum distance, or use the dynamic position + padding
+        let tableTop = Math.max(doc.y + 30, billToY + 80);
+
+        // Column Configuration
+        const colDesc = startX + 10;
+        const colQty = 340;
+        const colPrice = 410;
+        const colTotal = 480;
+
+        // A. Header Bar
+        const headerHeight = 25;
+        doc.rect(startX, tableTop, contentWidth, headerHeight).fill(colors.black);
+
+        doc.fillColor(colors.white).font(fonts.bold).fontSize(9);
+        doc.text('DESCRIPTION', colDesc, tableTop + 8);
+        doc.text('QUANTITY', colQty, tableTop + 8, { width: 60, align: 'center' });
+        doc.text('PRICE', colPrice, tableTop + 8, { width: 60, align: 'right' });
+        doc.text('TOTAL', colTotal, tableTop + 8, { width: 55, align: 'right' });
+
+        // B. Items Loop
+        let currentY = tableTop + headerHeight + 15;
+        doc.fillColor(colors.black).font(fonts.regular).fontSize(10);
 
         bill.items.forEach(item => {
             const total = item.quantity * item.price;
 
-            doc.font(fontRegular).fontSize(10)
-                .text(item.name, 50 + col.desc, y, { width: colWidths.desc })
-                .text(item.quantity, 50 + col.qty, y, { width: colWidths.qty, align: 'center' })
-                .text(formatCurrency(item.price), 50 + col.price, y, { width: colWidths.price, align: 'right' })
-                .text(formatCurrency(total), 50 + col.total, y, { width: colWidths.total, align: 'right' });
+            doc.text(item.name, colDesc, currentY, { width: 250 });
+            doc.text(item.quantity, colQty, currentY, { width: 60, align: 'center' });
+            doc.text(formatCurrency(item.price), colPrice, currentY, { width: 60, align: 'right' });
+            doc.text(formatCurrency(total), colTotal, currentY, { width: 55, align: 'right' });
 
-            y += 25; // Row height
+            currentY += 25;
         });
 
-        // Add some spacing before totals
-        y += 10;
+        currentY += 10;
+        doc.moveTo(startX, currentY).lineTo(endX, currentY).lineWidth(0.5).strokeColor(colors.lightGray).stroke();
+        currentY += 15;
 
-        // Divider line inside box
-        doc.moveTo(50, y).lineTo(545, y).lineWidth(0.5).strokeColor(colors.lightGray).stroke();
-        y += 15;
+        // C. Totals Section
+        const totalsLabelX = 350;
+        const totalsValX = 435;
+        const totalsValWidth = 100;
 
-        // 3. Totals (Right Aligned inside Box)
-        const totalsXLabel = 340;
-        const totalsXValue = 460;
-        const totalsValWidth = 70;
+        // Subtotal
+        doc.font(fonts.regular).fontSize(10);
+        doc.text('Subtotal:', totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(bill.totalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        currentY += 20;
 
-        const addTotalLine = (label, value, isBold = false) => {
-            doc.font(isBold ? fontBold : fontRegular).fontSize(10).fillColor(colors.black)
-                .text(label, totalsXLabel, y, { align: 'right', width: 110 })
-                .text(value, totalsXValue, y, { align: 'right', width: totalsValWidth });
-            y += 18;
-        };
-
-        addTotalLine('Subtotal:', formatCurrency(bill.totalAmount));
-
+        // Tax
         const taxVal = (bill.totalAmount * 0.025).toFixed(2);
-        addTotalLine('Tax (2.5%):', formatCurrency(taxVal));
-        addTotalLine('Tax (2.5%):', formatCurrency(taxVal));
+        doc.text('Tax (2.5%):', totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        currentY += 20;
 
-        y += 5;
-        doc.font(fontBold).fontSize(12).text('Grand Total:', totalsXLabel, y, { align: 'right', width: 110 });
-        doc.text(formatCurrency(bill.finalAmount), totalsXValue, y, { align: 'right', width: totalsValWidth });
-        y += 25; // Padding bottom
+        doc.text('Tax (2.5%):', totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        currentY += 25;
 
-        // 4. DRAW THE BOX BORDER
-        doc.rect(50, boxTop, 495, y - boxTop).lineWidth(1).strokeColor(colors.black).stroke();
+        // Grand Total
+        doc.font(fonts.bold).fontSize(12);
+        doc.text('Grand Total:', totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(bill.finalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        currentY += 25;
 
-        // --- PAYMENT INFO ---
-        // Separate Box below
-        if (y > 660) { doc.addPage(); y = 50; } // Adjusted threshold
+        // Draw Outer Border
+        doc.rect(startX, tableTop, contentWidth, currentY - tableTop).lineWidth(1).strokeColor(colors.black).stroke();
 
-        const payY = y + 20;
-        const payHeight = 85;
+        // --- 6. PAYMENT INFO ---
+        if (currentY > 650) {
+            doc.addPage();
+            currentY = 50;
+        }
 
-        doc.rect(50, payY, 495, payHeight).lineWidth(1).strokeColor(colors.black).stroke();
+        const payBoxY = currentY + 20;
+        const payBoxHeight = 85;
 
-        doc.font(fontBold).fontSize(11).fillColor(colors.black)
-            .text('PAYMENT INFO', 65, payY + 15);
+        doc.rect(startX, payBoxY, contentWidth, payBoxHeight).lineWidth(1).strokeColor(colors.black).stroke();
 
-        doc.font(fontBold).fontSize(9)
-            .text('•  Account Name: ' + settings.bank.accName, 65, payY + 35)
-            .text('•  Account No: ' + settings.bank.accNo, 65, payY + 50)
-            .text('•  IFSC Code: ' + settings.bank.ifsc, 65, payY + 65);
+        doc.font(fonts.bold).fontSize(10).fillColor(colors.black)
+            .text('PAYMENT INFO', startX + 15, payBoxY + 15);
 
-        // --- FOOTER ---
-        const footerY = payY + payHeight + 30;
+        const bankY = payBoxY + 35;
+        const lh = 15;
 
-        doc.font(fontBold).fontSize(16).fillColor(colors.black)
-            .text('THANK YOU FOR', 50, footerY)
-            .text('YOUR BUSINESS', 50, footerY + 20);
+        doc.font(fonts.bold).fontSize(9);
+        doc.text(`•   Account Name: Mellou`, startX + 15, bankY);
+        doc.text(`•   Account No: 50200085316071`, startX + 15, bankY + lh);
+        doc.text(`•   IFSC Code: HDFC0000295`, startX + 15, bankY + lh * 2);
 
-        // --- BOTTOM RECTANGLE (Purple) ---
-        // Draw at bottom of A4 (841.89 pt height)
+        // --- 7. FOOTER ---
+        const footerY = payBoxY + payBoxHeight + 30;
+
+        doc.font(fonts.bold).fontSize(16).fillColor(colors.black)
+            .text('THANK YOU FOR', startX, footerY)
+            .text('YOUR BUSINESS', startX, footerY + 20);
+
+        // --- 8. PURPLE BOTTOM BAR ---
         const pageHeight = 841.89;
         const pageWidth = 595.28;
-        const barHeight = 15;
-
-        doc.rect(0, pageHeight - barHeight, pageWidth, barHeight)
-            .fill(colors.primary);
+        doc.rect(0, pageHeight - 15, pageWidth, 15).fill(colors.primary);
 
         doc.end();
 
