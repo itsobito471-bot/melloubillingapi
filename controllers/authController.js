@@ -6,8 +6,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mellou-secret-key-change-in-produc
 exports.register = async (req, res) => {
     try {
         const { username, email, password, role } = req.body;
+        const lowercaseEmail = email.toLowerCase();
+        const lowercaseUsername = username.toLowerCase();
 
-        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        const existingUser = await User.findOne({ $or: [{ email: lowercaseEmail }, { username: lowercaseUsername }] });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
@@ -34,8 +36,14 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { username, password } = req.body;
+        const lowercaseUsername = username.toLowerCase();
 
-        const user = await User.findOne({ $or: [{ username }, { email: username }] });
+        const user = await User.findOne({
+            $or: [
+                { username: lowercaseUsername },
+                { email: lowercaseUsername }
+            ]
+        });
         if (!user) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }

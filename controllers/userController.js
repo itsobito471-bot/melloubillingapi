@@ -29,8 +29,10 @@ exports.getAllUsers = async (req, res) => {
 exports.createUser = async (req, res) => {
     try {
         const { username, email, password, role } = req.body;
+        const lowercaseEmail = email.toLowerCase();
+        const lowercaseUsername = username.toLowerCase();
 
-        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        const existingUser = await User.findOne({ $or: [{ email: lowercaseEmail }, { username: lowercaseUsername }] });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
