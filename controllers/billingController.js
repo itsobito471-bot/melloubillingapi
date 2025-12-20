@@ -1,5 +1,6 @@
 const Bill = require('../models/Bill');
 const Product = require('../models/Product');
+const Setting = require('../models/Setting');
 const PDFDocument = require('pdfkit');
 const path = require('path');
 const fs = require('fs');
@@ -110,6 +111,24 @@ exports.downloadBillPDF = async (req, res) => {
         const bill = await Bill.findById(req.params.id).populate('client');
         if (!bill) return res.status(404).json({ message: 'Bill not found' });
 
+        // --- FETCH SETTINGS WITH FALLBACKS ---
+        const settingsList = await Setting.find({});
+        const fetchedSettings = {};
+        settingsList.forEach(s => fetchedSettings[s.key] = s.value);
+
+        const defaults = {
+            companyName: 'mellou',
+            address: 'CC 54/2593 5, Bose Nagar\nRoad, Kadavanthara, Kochi,\nErnakulam, Kerala, 682020',
+            phone: '',
+            cgstPercentage: 2.5,
+            sgstPercentage: 2.5,
+            accountName: 'Mellou',
+            accountNo: '50200085316071',
+            ifscCode: 'HDFC0000295'
+        };
+
+        const settings = { ...defaults, ...fetchedSettings };
+
         const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
 
         // --- 1. REGISTER CUSTOM FONTS ---
@@ -165,13 +184,13 @@ exports.downloadBillPDF = async (req, res) => {
         let headerY = 55;
 
         doc.font(fonts.regular).fontSize(18).fillColor(colors.black)
-            .text('mellou', headerTextX, headerY);
+            .text(settings.companyName, headerTextX, headerY);
 
         headerY += 22;
         doc.font(fonts.regular).fontSize(8).fillColor(colors.darkGray);
-        doc.text('CC 54/2593 5, Bose Nagar', headerTextX, headerY);
-        doc.text('Road, Kadavanthara, Kochi,', headerTextX, headerY + 11);
-        doc.text('Ernakulam, Kerala, 682020', headerTextX, headerY + 22);
+
+        // Multi-line address handling
+        doc.text(settings.address, headerTextX, headerY, { width: 350, lineGap: 2 });
 
         // --- 2. INVOICE TITLE & ARROW ---
         const titleY = 130;
@@ -331,13 +350,17 @@ exports.downloadBillPDF = async (req, res) => {
         doc.text(formatCurrency(bill.totalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 20;
 
-        const taxVal = (bill.totalAmount * 0.025).toFixed(2);
-        doc.text('Tax (2.5%):', totalsLabelX, currentY, { align: 'right', width: 80 });
-        doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        const cgstRate = parseFloat(settings.cgstPercentage) / 100;
+        const sgstRate = parseFloat(settings.sgstPercentage) / 100;
+        const cgstVal = (bill.totalAmount * cgstRate).toFixed(2);
+        const sgstVal = (bill.totalAmount * sgstRate).toFixed(2);
+
+        doc.text(`CGST (${settings.cgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(cgstVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 20;
 
-        doc.text('Tax (2.5%):', totalsLabelX, currentY, { align: 'right', width: 80 });
-        doc.text(formatCurrency(taxVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+        doc.text(`SGST (${settings.sgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(formatCurrency(sgstVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 25;
 
         doc.font(fonts.bold).fontSize(12);
@@ -360,9 +383,9 @@ exports.downloadBillPDF = async (req, res) => {
         const bankY = payBoxY + 35;
         const lh = 15;
         doc.font(fonts.regular).fontSize(9);
-        doc.text(`•   Account Name: Mellou`, startX + 15, bankY);
-        doc.text(`•   Account No: 50200085316071`, startX + 15, bankY + lh);
-        doc.text(`•   IFSC Code: HDFC0000295`, startX + 15, bankY + lh * 2);
+        doc.text(`•   Account Name: ${settings.accountName}`, startX + 15, bankY);
+        doc.text(`•   Account No: ${settings.accountNo}`, startX + 15, bankY + lh);
+        doc.text(`•   IFSC Code: ${settings.ifscCode}`, startX + 15, bankY + lh * 2);
 
         // --- 7. FOOTER ---
         const footerY = payBoxY + payBoxHeight + 30;
