@@ -36,8 +36,29 @@ exports.createBill = async (req, res) => {
 
         const finalAmount = totalAmount - (discount || 0);
 
+        // --- GENERATE INVOICE NUMBER ---
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const startYear = now.getMonth() >= 3 ? currentYear : currentYear - 1; // Financial year starts in April
+        const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+        const prefix = `ML/${fyStr}/`;
+
+        // Find the last bill for the current financial year
+        const lastBill = await Bill.findOne({ billNumber: new RegExp(`^${prefix}`) })
+            .sort({ billNumber: -1 });
+
+        let nextNum = 1;
+        if (lastBill && lastBill.billNumber) {
+            const parts = lastBill.billNumber.split('/');
+            const lastNum = parseInt(parts[2]);
+            if (!isNaN(lastNum)) nextNum = lastNum + 1;
+        }
+
+        const billNumber = `${prefix}${String(nextNum).padStart(4, '0')}`;
+
         const bill = new Bill({
             client: clientId,
+            billNumber,
             items: billItems,
             totalAmount,
             discount,
@@ -117,6 +138,8 @@ exports.downloadBillPDF = async (req, res) => {
             bold: useCustomFont ? 'Poppins-Bold' : 'Helvetica-Bold'
         };
 
+        console.log(fonts, 'fonts')
+
         const colors = {
             primary: '#b78fd1',
             black: '#000000',
@@ -133,27 +156,27 @@ exports.downloadBillPDF = async (req, res) => {
         const formatCurrency = (amount) => `Rs. ${parseFloat(amount).toFixed(2)}`;
 
         // --- 1. HEADER SECTION ---
-        const logoPath = path.join(__dirname, '../assets/logo.png');
+        const logoPath = path.join(__dirname, '../assets/Logo1.png');
         if (fs.existsSync(logoPath)) {
-            doc.image(logoPath, startX, 45, { width: 40 });
+            doc.image(logoPath, startX, 45, { width: 75 });
         }
 
-        const headerTextX = 100;
-        let headerY = 45;
+        const headerTextX = 140;
+        let headerY = 55;
 
-        doc.font(fonts.bold).fontSize(16).fillColor(colors.primary)
+        doc.font(fonts.regular).fontSize(18).fillColor(colors.black)
             .text('mellou', headerTextX, headerY);
 
-        headerY += 20;
+        headerY += 22;
         doc.font(fonts.regular).fontSize(8).fillColor(colors.darkGray);
         doc.text('CC 54/2593 5, Bose Nagar', headerTextX, headerY);
-        doc.text('Road, Kadavanthara, Kochi,', headerTextX, headerY + 12);
-        doc.text('Ernakulam, Kerala, 682020', headerTextX, headerY + 24);
+        doc.text('Road, Kadavanthara, Kochi,', headerTextX, headerY + 11);
+        doc.text('Ernakulam, Kerala, 682020', headerTextX, headerY + 22);
 
         // --- 2. INVOICE TITLE & ARROW ---
         const titleY = 130;
 
-        doc.font(fonts.bold).fontSize(36).fillColor(colors.black)
+        doc.font(fonts.regular).fontSize(36).fillColor(colors.black)
             .text('Invoice', startX, titleY);
 
         // --- FIXED ARROW (South-West / Down-Left) ---
@@ -251,7 +274,11 @@ exports.downloadBillPDF = async (req, res) => {
         doc.moveDown(0.2);
         doc.text(bill.client.address || '', startX, doc.y, { width: 300, align: 'left', lineGap: 2 });
         doc.moveDown(0.5);
-        doc.text(bill.client.phone || '', startX, doc.y);
+        doc.text(`Ph No.: ${bill.client.phone || ''}`, startX, doc.y);
+        if (bill.client.gstin) {
+            doc.moveDown(0.2);
+            doc.text(`GSTIN: ${bill.client.gstin}`, startX, doc.y);
+        }
 
         // --- 5. MAIN TABLE ---
         let tableTop = doc.y + 25;
@@ -332,7 +359,7 @@ exports.downloadBillPDF = async (req, res) => {
 
         const bankY = payBoxY + 35;
         const lh = 15;
-        doc.font(fonts.bold).fontSize(9);
+        doc.font(fonts.regular).fontSize(9);
         doc.text(`•   Account Name: Mellou`, startX + 15, bankY);
         doc.text(`•   Account No: 50200085316071`, startX + 15, bankY + lh);
         doc.text(`•   IFSC Code: HDFC0000295`, startX + 15, bankY + lh * 2);

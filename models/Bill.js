@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const BillSchema = new mongoose.Schema({
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+    billNumber: { type: String, unique: true, required: true },
     items: [{
         product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
         quantity: { type: Number, required: true },
