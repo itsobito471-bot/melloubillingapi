@@ -41,6 +41,7 @@ router.patch('/clients/:id', clientController.updateClient);
 router.post('/bills', billingController.createBill);
 router.get('/bills', billingController.getBills);
 router.get('/bills/:id/pdf', billingController.downloadBillPDF);
+router.delete('/bills/:id', billingController.deleteBill);
 
 // Areas
 router.get('/areas', areaController.getAreas);

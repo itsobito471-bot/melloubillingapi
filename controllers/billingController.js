@@ -44,8 +44,11 @@ exports.createBill = async (req, res) => {
         const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
         const prefix = `ML/${fyStr}/`;
 
-        // Find the last bill for the current financial year
-        const lastBill = await Bill.findOne({ billNumber: new RegExp(`^${prefix}`) })
+        // Find the last bill for the current financial year (exclude deleted)
+        const lastBill = await Bill.findOne({
+            billNumber: new RegExp(`^${prefix}`),
+            isDeleted: { $ne: true }
+        })
             .sort({ billNumber: -1 });
 
         let nextNum = 1;
@@ -80,8 +83,8 @@ exports.getBills = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const total = await Bill.countDocuments();
-        const bills = await Bill.find()
+        const total = await Bill.countDocuments({ isDeleted: { $ne: true } });
+        const bills = await Bill.find({ isDeleted: { $ne: true } })
             .populate('client')
             .sort({ date: -1 })
             .skip(skip)
@@ -108,7 +111,7 @@ exports.getBills = async (req, res) => {
 
 exports.downloadBillPDF = async (req, res) => {
     try {
-        const bill = await Bill.findById(req.params.id).populate('client');
+        const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).populate('client');
         if (!bill) return res.status(404).json({ message: 'Bill not found' });
 
         // --- FETCH SETTINGS WITH FALLBACKS ---
@@ -401,5 +404,19 @@ exports.downloadBillPDF = async (req, res) => {
     } catch (err) {
         console.error(err);
         if (!res.headersSent) res.status(500).json({ message: err.message });
+    }
+};
+exports.deleteBill = async (req, res) => {
+    try {
+        const bill = await Bill.findById(req.params.id);
+        if (!bill) return res.status(404).json({ message: 'Bill not found' });
+
+        bill.isDeleted = true;
+        bill.deletedAt = new Date();
+        await bill.save();
+
+        res.json({ message: 'Bill deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 };

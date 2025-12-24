@@ -12,7 +12,9 @@ const BillSchema = new mongoose.Schema({
     totalAmount: { type: Number, required: true },
     discount: { type: Number, default: 0 },
     finalAmount: { type: Number, required: true },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }
 });
 
 module.exports = mongoose.model('Bill', BillSchema);
