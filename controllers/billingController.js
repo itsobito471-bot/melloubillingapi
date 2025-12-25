@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 exports.createBill = async (req, res) => {
-    const { clientId, items, discount, resellerMargin = 0 } = req.body;
+    const { clientId, items, discount, resellerMargin = 0, date } = req.body;
     const Client = require('../models/Client'); // Import Client model
 
     try {
@@ -50,7 +50,7 @@ exports.createBill = async (req, res) => {
         const finalAmount = Math.round((totalAmount - (discount || 0) + Number.EPSILON) * 100) / 100;
 
         // --- GENERATE INVOICE NUMBER ---
-        const now = new Date();
+        const now = date ? new Date(date) : new Date();
         const currentYear = now.getFullYear();
         const startYear = now.getMonth() >= 3 ? currentYear : currentYear - 1; // Financial year starts in April
         const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
@@ -79,7 +79,8 @@ exports.createBill = async (req, res) => {
             totalAmount,
             discount,
             finalAmount,
-            resellerMargin
+            resellerMargin,
+            date: now
         });
 
         await bill.save();
@@ -137,7 +138,7 @@ exports.getBillById = async (req, res) => {
 };
 
 exports.updateBill = async (req, res) => {
-    const { items, discount, resellerMargin } = req.body;
+    const { items, discount, resellerMargin, date } = req.body;
     const Client = require('../models/Client');
 
     try {
@@ -178,7 +179,8 @@ exports.updateBill = async (req, res) => {
         bill.items = billItems;
         bill.totalAmount = totalAmount;
         bill.discount = discount || 0;
-        bill.resellerMargin = resellerMargin;
+        bill.resellerMargin = resellerMargin || 0;
+        if (date) bill.date = new Date(date);
         bill.finalAmount = Math.round((totalAmount - (discount || 0) + Number.EPSILON) * 100) / 100;
         bill.updatedAt = new Date();
 
