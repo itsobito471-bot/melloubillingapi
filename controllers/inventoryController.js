@@ -6,8 +6,8 @@ exports.getProducts = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        const total = await Product.countDocuments();
-        const products = await Product.find()
+        const total = await Product.countDocuments({ isDeleted: false });
+        const products = await Product.find({ isDeleted: false })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -48,8 +48,9 @@ exports.updateProduct = async (req, res) => {
 
 exports.deleteProduct = async (req, res) => {
     try {
-        await Product.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Product deleted' });
+        const product = await Product.findByIdAndUpdate(req.params.id, { isDeleted: true }, { new: true });
+        if (!product) return res.status(404).json({ message: 'Product not found' });
+        res.json({ message: 'Product deleted (soft delete)' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

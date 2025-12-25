@@ -25,7 +25,8 @@ const ExpenseSchema = new mongoose.Schema({
         enum: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'],
         default: 'Cash'
     },
-    receiptUrl: String
+    receiptUrl: String,
+    isDeleted: { type: Boolean, default: false, index: true }
 }, {
     timestamps: true
 });

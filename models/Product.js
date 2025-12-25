@@ -13,7 +13,8 @@ const ProductSchema = new mongoose.Schema({
     category: { type: String },
     stock: { type: Number, default: 0 },
     description: String,
-    image: String
+    image: String,
+    isDeleted: { type: Boolean, default: false, index: true }
 }, {
     timestamps: true
 });

@@ -45,7 +45,7 @@ exports.updateCategory = async (req, res) => {
 exports.deleteCategory = async (req, res) => {
     try {
         // Check if used in expenses
-        const count = await Expense.countDocuments({ category: req.params.id });
+        const count = await Expense.countDocuments({ category: req.params.id, isDeleted: false });
         if (count > 0) {
             return res.status(400).json({ message: `Cannot delete category: used in ${count} expenses` });
         }
@@ -68,7 +68,7 @@ exports.getExpenses = async (req, res) => {
         const skip = (page - 1) * limit;
 
         // Optional filtering
-        const query = {};
+        const query = { isDeleted: false };
         if (req.query.startDate && req.query.endDate) {
             query.date = {
                 $gte: new Date(req.query.startDate),
@@ -148,9 +148,9 @@ exports.updateExpense = async (req, res) => {
 
 exports.deleteExpense = async (req, res) => {
     try {
-        const expense = await Expense.findByIdAndDelete(req.params.id);
+        const expense = await Expense.findByIdAndUpdate(req.params.id, { isDeleted: true }, { new: true });
         if (!expense) return res.status(404).json({ message: 'Expense not found' });
-        res.json({ message: 'Expense deleted successfully' });
+        res.json({ message: 'Expense deleted successfully (soft delete)' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
