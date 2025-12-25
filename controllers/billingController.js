@@ -6,36 +6,48 @@ const path = require('path');
 const fs = require('fs');
 
 exports.createBill = async (req, res) => {
-    const { clientId, items, discount } = req.body;
+    const { clientId, items, discount, resellerMargin = 0 } = req.body;
+    const Client = require('../models/Client'); // Import Client model
 
     try {
         let totalAmount = 0;
         const billItems = [];
 
         // Validate items and calculate total
+        // Fetch current GST settings for calculation
+        const settingsList = await Setting.find({});
+        const settings = {};
+        settingsList.forEach(s => settings[s.key] = s.value);
+        const cgstRate = (parseFloat(settings.cgstPercentage) || 2.5) / 100;
+        const sgstRate = (parseFloat(settings.sgstPercentage) || 2.5) / 100;
+        const totalGstRate = cgstRate + sgstRate;
+
         for (let item of items) {
             const product = await Product.findById(item.product);
             if (!product) return res.status(404).json({ message: `Product ${item.product} not found` });
 
-            // STOCK VALIDATION - COMMENTED OUT
-            // if (product.stock < item.quantity) return res.status(400).json({ message: `Insufficient stock for ${product.name}` });
+            // Adjusted Price Calculation: MRP * (1 - Margin/100)
+            const adjustedPrice = Math.round((product.price * (1 - (resellerMargin / 100)) + Number.EPSILON) * 100) / 100;
 
-            // DECREMENT STOCK - COMMENTED OUT
-            // product.stock -= item.quantity;
-            // await product.save();
+            // BasePrice = AdjustedPrice / (1 + GST_Rate)
+            const basePrice = Math.round((adjustedPrice / (1 + totalGstRate) + Number.EPSILON) * 100) / 100;
+            const taxAmount = Math.round((adjustedPrice - basePrice + Number.EPSILON) * 100) / 100;
 
-            const amount = product.price * item.quantity;
-            totalAmount += amount;
+            totalAmount += adjustedPrice * item.quantity;
+            totalAmount = Math.round((totalAmount + Number.EPSILON) * 100) / 100;
 
             billItems.push({
                 product: product._id,
-                name: product.name, // Store name in case it changes later
+                name: product.name,
                 quantity: item.quantity,
-                price: product.price
+                mrp: product.price,
+                price: adjustedPrice,
+                basePrice: basePrice,
+                taxAmount: taxAmount
             });
         }
 
-        const finalAmount = totalAmount - (discount || 0);
+        const finalAmount = Math.round((totalAmount - (discount || 0) + Number.EPSILON) * 100) / 100;
 
         // --- GENERATE INVOICE NUMBER ---
         const now = new Date();
@@ -66,10 +78,19 @@ exports.createBill = async (req, res) => {
             items: billItems,
             totalAmount,
             discount,
-            finalAmount
+            finalAmount,
+            resellerMargin
         });
 
         await bill.save();
+
+        // Update Client's default margin if it differs
+        const client = await Client.findById(clientId);
+        if (client && client.resellerMargin !== resellerMargin) {
+            client.resellerMargin = resellerMargin;
+            await client.save();
+        }
+
         res.status(201).json(bill);
 
     } catch (err) {
@@ -116,7 +137,8 @@ exports.getBillById = async (req, res) => {
 };
 
 exports.updateBill = async (req, res) => {
-    const { items, discount } = req.body;
+    const { items, discount, resellerMargin } = req.body;
+    const Client = require('../models/Client');
 
     try {
         const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
@@ -126,27 +148,49 @@ exports.updateBill = async (req, res) => {
         const billItems = [];
 
         // Validate products and calculate new total
+        const settingsList = await Setting.find({});
+        const settings = {};
+        settingsList.forEach(s => settings[s.key] = s.value);
+        const totalGstRate = (parseFloat(settings.cgstPercentage) || 2.5) / 100 + (parseFloat(settings.sgstPercentage) || 2.5) / 100;
+
         for (let item of items) {
             const product = await Product.findById(item.product);
             if (!product) return res.status(404).json({ message: `Product ${item.product} not found` });
 
-            totalAmount += product.price * item.quantity;
+            const adjustedPrice = Math.round((product.price * (1 - (resellerMargin / 100)) + Number.EPSILON) * 100) / 100;
+            const basePrice = Math.round((adjustedPrice / (1 + totalGstRate) + Number.EPSILON) * 100) / 100;
+            const taxAmount = Math.round((adjustedPrice - basePrice + Number.EPSILON) * 100) / 100;
+
+            totalAmount += adjustedPrice * item.quantity;
+            totalAmount = Math.round((totalAmount + Number.EPSILON) * 100) / 100;
 
             billItems.push({
                 product: product._id,
                 name: product.name,
                 quantity: item.quantity,
-                price: product.price
+                mrp: product.price,
+                price: adjustedPrice,
+                basePrice,
+                taxAmount
             });
         }
 
         bill.items = billItems;
         bill.totalAmount = totalAmount;
         bill.discount = discount || 0;
-        bill.finalAmount = totalAmount - (discount || 0);
+        bill.resellerMargin = resellerMargin;
+        bill.finalAmount = Math.round((totalAmount - (discount || 0) + Number.EPSILON) * 100) / 100;
         bill.updatedAt = new Date();
 
         await bill.save();
+
+        // Update Client's default margin if it differs
+        const client = await Client.findById(bill.client);
+        if (client && client.resellerMargin !== resellerMargin) {
+            client.resellerMargin = resellerMargin;
+            await client.save();
+        }
+
         res.json(bill);
 
     } catch (err) {
@@ -374,15 +418,18 @@ exports.downloadBillPDF = async (req, res) => {
         let currentY = tableTop + headerHeight + 15;
         doc.fillColor(colors.black).font(fonts.regular).fontSize(10);
 
+        let totalBaseAmount = 0;
         bill.items.forEach(item => {
-            const total = item.quantity * item.price;
+            const unitPrice = Math.round((item.basePrice + Number.EPSILON) * 100) / 100;
+            const taxableTotal = Math.round((item.quantity * unitPrice + Number.EPSILON) * 100) / 100;
+            totalBaseAmount += taxableTotal;
 
             if (currentY > 700) { doc.addPage(); currentY = 50; }
 
             doc.text(item.name, colDesc, currentY, { width: 250 });
             doc.text(item.quantity, colQty, currentY, { width: 60, align: 'center' });
-            doc.text(formatCurrency(item.price), colPrice, currentY, { width: 60, align: 'right' });
-            doc.text(formatCurrency(total), colTotal, currentY, { width: 55, align: 'right' });
+            doc.text(formatCurrency(unitPrice), colPrice, currentY, { width: 60, align: 'right' });
+            doc.text(formatCurrency(taxableTotal), colTotal, currentY, { width: 55, align: 'right' });
             currentY += 25;
         });
 
@@ -391,32 +438,34 @@ exports.downloadBillPDF = async (req, res) => {
         currentY += 15;
 
         // Totals
-        const totalsLabelX = 350;
+        const totalsLabelX = 300;
         const totalsValX = 435;
         const totalsValWidth = 100;
 
         if (currentY > 650) { doc.addPage(); currentY = 50; }
 
         doc.font(fonts.regular).fontSize(10);
-        doc.text('Subtotal:', totalsLabelX, currentY, { align: 'right', width: 80 });
-        doc.text(formatCurrency(bill.totalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
+
+        // Calculate total taxes from itemized values
+        const totalTaxAmount = bill.items.reduce((acc, item) => acc + (item.taxAmount * item.quantity), 0);
+        const roundedTotalTaxAmount = Math.round((totalTaxAmount + Number.EPSILON) * 100) / 100;
+        const cgstVal = (roundedTotalTaxAmount / 2).toFixed(2);
+        const sgstVal = (roundedTotalTaxAmount / 2).toFixed(2);
+
+        doc.text('Subtotal:', totalsLabelX, currentY, { align: 'right', width: 130 });
+        doc.text(formatCurrency(totalBaseAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 20;
 
-        const cgstRate = parseFloat(settings.cgstPercentage) / 100;
-        const sgstRate = parseFloat(settings.sgstPercentage) / 100;
-        const cgstVal = (bill.totalAmount * cgstRate).toFixed(2);
-        const sgstVal = (bill.totalAmount * sgstRate).toFixed(2);
-
-        doc.text(`CGST (${settings.cgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(`CGST (${settings.cgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 130 });
         doc.text(formatCurrency(cgstVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 20;
 
-        doc.text(`SGST (${settings.sgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text(`SGST (${settings.sgstPercentage}%):`, totalsLabelX, currentY, { align: 'right', width: 130 });
         doc.text(formatCurrency(sgstVal), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 25;
 
         doc.font(fonts.bold).fontSize(12);
-        doc.text('Grand Total:', totalsLabelX, currentY, { align: 'right', width: 80 });
+        doc.text('Grand Total:', totalsLabelX, currentY, { align: 'right', width: 130 });
         doc.text(formatCurrency(bill.finalAmount), totalsValX, currentY, { align: 'right', width: totalsValWidth });
         currentY += 25;
 
