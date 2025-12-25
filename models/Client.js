@@ -18,6 +18,10 @@ const ClientSchema = new mongoose.Schema({
         type: String,
         enum: ['Active', 'Inactive'],
         default: 'Active'
+    },
+    resellerMargin: {
+        type: Number,
+        default: 0
     }
 }, {
     timestamps: true
