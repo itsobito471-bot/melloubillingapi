@@ -40,6 +40,8 @@ router.patch('/clients/:id', clientController.updateClient);
 // Billing
 router.post('/bills', billingController.createBill);
 router.get('/bills', billingController.getBills);
+router.get('/bills/:id', billingController.getBillById);
+router.patch('/bills/:id', billingController.updateBill);
 router.get('/bills/:id/pdf', billingController.downloadBillPDF);
 router.delete('/bills/:id', billingController.deleteBill);
 

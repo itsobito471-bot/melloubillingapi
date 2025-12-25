@@ -105,6 +105,55 @@ exports.getBills = async (req, res) => {
     }
 };
 
+exports.getBillById = async (req, res) => {
+    try {
+        const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).populate('client');
+        if (!bill) return res.status(404).json({ message: 'Bill not found' });
+        res.json(bill);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.updateBill = async (req, res) => {
+    const { items, discount } = req.body;
+
+    try {
+        const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+        if (!bill) return res.status(404).json({ message: 'Bill not found' });
+
+        let totalAmount = 0;
+        const billItems = [];
+
+        // Validate products and calculate new total
+        for (let item of items) {
+            const product = await Product.findById(item.product);
+            if (!product) return res.status(404).json({ message: `Product ${item.product} not found` });
+
+            totalAmount += product.price * item.quantity;
+
+            billItems.push({
+                product: product._id,
+                name: product.name,
+                quantity: item.quantity,
+                price: product.price
+            });
+        }
+
+        bill.items = billItems;
+        bill.totalAmount = totalAmount;
+        bill.discount = discount || 0;
+        bill.finalAmount = totalAmount - (discount || 0);
+        bill.updatedAt = new Date();
+
+        await bill.save();
+        res.json(bill);
+
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+};
+
 
 
 
